@@ -95,11 +95,29 @@ def format_python(session: Session) -> None:
     session.run("uvx", "ruff", "format", *session.posargs)
 
 
+@nox.session(python=False, name="format-rust", tags=[FORMAT, RUST])
+def format_rust(session: Session) -> None:
+    """Run Rust code formatter (cargo fmt)."""
+    session.log("Installing formatting dependencies...")
+    session.run("cargo", "install", "cargo-fmt", external=True)
+    session.run("cargo", "fmt", "--all", "--", "--check", external=True)
+    session.run("cargo", "fmt", "--all", "--", "--write", external=True)
+
+
 @nox.session(python=False, name="lint-python", tags=[LINT, PYTHON, QUALITY])
 def lint_python(session: Session) -> None:
     """Run Python code linters (Ruff check, Pydocstyle rules)."""
     session.log(f"Running Ruff check with py{session.python}.")
     session.run("uvx", "ruff", "check", "--fix", "--verbose")
+
+
+@nox.session(python=False, name="lint-rust", tags=[LINT, RUST])
+def lint_rust(session: Session) -> None:
+    """Run Rust code linters (cargo clippy)."""
+    session.log("Installing linting dependencies...")
+    session.run("cargo", "install", "cargo-clippy", external=True)
+    session.run("cargo", "clippy", "--all-features", "--", "--check", external=True)
+    session.run("cargo", "clippy", "--all-features", "--", "--write", external=True)
 
 
 @nox.session(python=PYTHON_VERSIONS, name="typecheck", tags=[TYPE, PYTHON])
@@ -120,6 +138,14 @@ def security_python(session: Session) -> None:
 
     session.log(f"Running pip-audit dependency security check with py{session.python}.")
     session.run("uvx", "pip-audit")
+
+
+@nox.session(python=False, name="security-rust", tags=[SECURITY, RUST])
+def security_rust(session: Session) -> None:
+    """Run code security checks (cargo audit)."""
+    session.log("Installing security dependencies...")
+    session.run("cargo", "install", "cargo-audit", external=True)
+    session.run("cargo", "audit", "--all", external=True)
 
 
 @nox.session(python=PYTHON_VERSIONS, name="tests-python", tags=[TEST, PYTHON])
@@ -144,6 +170,15 @@ def tests_python(session: Session) -> None:
     )
 
 
+@nox.session(python=False, name="tests-rust", tags=[TEST, RUST, CI])
+def tests_rust(session: Session) -> None:
+    """Test the project's rust crates."""
+    crates: list[Path] = [cargo_toml.parent for cargo_toml in CRATES_FOLDER.glob("*/Cargo.toml")]
+    crate_kwargs: list[str] = [f"-p {crate.name}" for crate in crates]
+    session.run("cargo", "test", "--all-features", "--no-run", *crate_kwargs, external=True)
+    session.run("cargo", "test", "--all-features", *crate_kwargs, external=True)
+
+
 @nox.session(python=DEFAULT_PYTHON_VERSION, name="build-docs", tags=[DOCS, BUILD])
 def docs_build(session: Session) -> None:
     """Build the project documentation (Sphinx)."""
@@ -164,7 +199,7 @@ def docs_build(session: Session) -> None:
 def build_python(session: Session) -> None:
     """Build sdist and wheel packages (uv build)."""
     session.log(f"Building sdist and wheel packages with py{session.python}.")
-    session.run("uv", "build", "--sdist", "--wheel", "--out-dir", "dist/", external=True)
+    session.run("maturin", "develop", "--uv")
     session.log("Built packages in ./dist directory:")
     for path in Path("dist/").glob("*"):
         session.log(f"- {path.name}")
@@ -239,6 +274,15 @@ def publish_python(session: Session) -> None:
 
     session.log("Publishing packages to PyPI.")
     session.run("uv", "publish", "dist/*", *session.posargs, external=True)
+
+
+@nox.session(python=False, name="publish-rust", tags=[RELEASE])
+def publish_rust(session: Session) -> None:
+    """Publish built crates to crates.io."""
+    session.log("Publishing crates to crates.io")
+    for cargo_toml in CRATES_FOLDER.glob("*/Cargo.toml"):
+        crate_folder: Path = cargo_toml.parent
+        session.run("cargo", "publish", "-p", crate_folder.name)
 
 
 @nox.session(python=False)
