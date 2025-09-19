@@ -196,7 +196,7 @@ def docs_build(session: Session) -> None:
 def build_python(session: Session) -> None:
     """Build sdist and wheel packages (uv build)."""
     session.log(f"Building sdist and wheel packages with py{session.python}.")
-    session.run("maturin", "develop", "--uv")
+    session.run("uvx", "maturin", "develop", "--uv")
     session.log("Built packages in ./dist directory:")
     for path in Path("dist/").glob("*"):
         session.log(f"- {path.name}")
