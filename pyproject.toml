@@ -55,7 +55,7 @@ docs = [
 ]
 
 [project.scripts]
-robust-maturin-demo = "robust-maturin-demo.__main__:app"
+robust-maturin-demo = "robust_maturin_demo.__main__:app"
 
 [project.urls]
 Homepage = "https://github.com/56kyle/robust-maturin-demo"
