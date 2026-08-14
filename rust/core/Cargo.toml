@@ -1,0 +1,10 @@
+[package]
+name = "robust-maturin-demo-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "robust_maturin_demo_core"

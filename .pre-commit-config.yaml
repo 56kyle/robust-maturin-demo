@@ -31,6 +31,24 @@ repos:
         language: system
         types: [text]
         stages: [pre-commit, pre-push, manual]
+      - id: rust-format
+        name: Rust Format
+        entry: cargo fmt --all --manifest-path rust/Cargo.toml -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: rust-clippy
+        name: Clippy
+        entry: cargo clippy --workspace --all-features --manifest-path rust/Cargo.toml -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: rust-check
+        name: Cargo Check
+        entry: cargo check --workspace --all-features --manifest-path rust/Cargo.toml
+        language: system
+        types: [rust]
+        pass_filenames: false
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.11
@@ -42,17 +60,6 @@ repos:
       - id: ruff-check
         args: [--fix, --diff, --exit-non-zero-on-fix, --config=.ruff.toml]
         name: Ruff Check
-
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: master
-    hooks:
-      - id: fmt
-        name: Rust Format
-      - id: clippy
-        args: ["--all-features", "--", "--write"]
-        name: Clippy
-      - id: cargo-check
-        name: Cargo Check
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v2.6.0

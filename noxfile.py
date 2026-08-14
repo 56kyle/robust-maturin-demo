@@ -21,12 +21,12 @@ DEFAULT_PYTHON_VERSION: str = PYTHON_VERSIONS[-1]
 REPO_ROOT: Path = Path(__file__).parent.resolve()
 TESTS_FOLDER: Path = REPO_ROOT / "tests"
 SCRIPTS_FOLDER: Path = REPO_ROOT / "scripts"
-CRATES_FOLDER: Path = REPO_ROOT / "rust"
+RUST_MANIFEST: Path = REPO_ROOT / "rust" / "Cargo.toml"
 
 PROJECT_NAME: str = "robust-maturin-demo"
 PACKAGE_NAME: str = "robust_maturin_demo"
 REPOSITORY_HOST: str = "github.com"
-REPOSITORY_PATH: str = "56kyle/robust-maturin-demo"
+REPOSITORY_PATH: str = "robust-python/robust-maturin-demo"
 
 ENV: str = "env"
 FORMAT: str = "format"
@@ -94,7 +94,7 @@ def format_rust(session: Session) -> None:
     session.log("Ensuring rustfmt component is available...")
     session.run("rustup", "component", "add", "rustfmt", external=True)
     session.log("Formatting Rust code...")
-    session.run("cargo", "fmt", "--all", external=True)
+    session.run("cargo", "fmt", "--all", "--manifest-path", RUST_MANIFEST, external=True)
 
 
 @nox.session(python=False, name="lint-python", tags=[LINT, QUALITY])
@@ -110,7 +110,18 @@ def lint_rust(session: Session) -> None:
     session.log("Ensuring clippy component is available...")
     session.run("rustup", "component", "add", "clippy", external=True)
     session.log("Running clippy lints...")
-    session.run("cargo", "clippy", "--all-features", "--", "-D", "warnings", external=True)
+    session.run(
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-features",
+        "--manifest-path",
+        RUST_MANIFEST,
+        "--",
+        "-D",
+        "warnings",
+        external=True,
+    )
 
 
 @nox.session(python=PYTHON_VERSIONS, name="typecheck")
@@ -139,7 +150,7 @@ def security_rust(session: Session) -> None:
     """Run code security checks (cargo audit)."""
     session.log("Ensuring cargo-audit is available...")
     session.run("cargo", "install", "cargo-audit", "--locked", external=True)
-    session.run("cargo", "audit", "--all", external=True)
+    session.run("cargo", "audit", "--file", RUST_MANIFEST.parent / "Cargo.lock", external=True)
 
 
 @nox.session(python=PYTHON_VERSIONS, name="tests-python", tags=[TEST])
@@ -167,10 +178,25 @@ def tests_python(session: Session) -> None:
 @nox.session(python=False, name="tests-rust", tags=[TEST])
 def tests_rust(session: Session) -> None:
     """Test the project's rust crates."""
-    crates: list[Path] = [cargo_toml.parent for cargo_toml in CRATES_FOLDER.glob("*/Cargo.toml")]
-    crate_kwargs: list[str] = [f"-p {crate.name}" for crate in crates]
-    session.run("cargo", "test", "--all-features", "--no-run", *crate_kwargs, external=True)
-    session.run("cargo", "test", "--all-features", *crate_kwargs, external=True)
+    session.run(
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-features",
+        "--no-run",
+        "--manifest-path",
+        RUST_MANIFEST,
+        external=True,
+    )
+    session.run(
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-features",
+        "--manifest-path",
+        RUST_MANIFEST,
+        external=True,
+    )
 
 
 @nox.session(python=DEFAULT_PYTHON_VERSION, name="build-docs", tags=[DOCS, BUILD])
@@ -261,45 +287,46 @@ def build_container(session: Session) -> None:
     session.log(f"Container image {project_image_name}:latest built locally.")
 
 
-@nox.session(python=False, name="setup-release", tags=[RELEASE])
-def setup_release(session: Session) -> None:
-    """Prepares a release by creating a release branch and bumping the version.
-
-    Additionally, creates the initial bump commit but doesn't push it.
-    """
-    session.log("Setting up release...")
-
-    session.run("python", SCRIPTS_FOLDER / "setup-release.py", *session.posargs, external=True)
+@nox.session(python=False, name="prepare-release", tags=[RELEASE])
+def prepare_release(session: Session) -> None:
+    """Create a validated local release branch and commit transactionally."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "prepare", *session.posargs, external=True)
 
 
-@nox.session(python=False, name="get-release-notes", tags=[RELEASE])
-def get_release_notes(session: Session) -> None:
-    """Gets the latest release notes if between bumping the version and tagging the release."""
-    session.log("Getting release notes...")
-    session.run("python", SCRIPTS_FOLDER / "get-release-notes.py", *session.posargs, external=True)
+@nox.session(python=False, name="validate-release", tags=[RELEASE])
+def validate_release(session: Session) -> None:
+    """Validate synchronized release metadata without publishing or tagging."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "validate", external=True)
 
 
-@nox.session(python=False, name="publish-python", tags=[RELEASE])
-def publish_python(session: Session) -> None:
-    """Publish sdist and wheel packages to PyPI via uv publish.
-
-    Requires packages to be built first (`nox -s build-python` or `nox -s build`).
-    Requires TWINE_USERNAME/TWINE_PASSWORD or TWINE_API_KEY environment variables set (usually in CI).
-    """
-    session.log("Checking built packages with Twine.")
-    session.run("uvx", "twine", "check", "dist/*")
-
-    session.log("Publishing packages to PyPI.")
-    session.run("uv", "publish", "dist/*", *session.posargs, external=True)
+@nox.session(python=False, name="build-release", tags=[RELEASE, BUILD])
+def build_release(session: Session) -> None:
+    """Build one pure-Python or Maturin host/matrix release cell."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "build", *session.posargs, external=True)
 
 
-@nox.session(python=False, name="publish-rust", tags=[RELEASE])
-def publish_rust(session: Session) -> None:
-    """Publish built crates to crates.io."""
-    session.log("Publishing crates to crates.io")
-    for cargo_toml in CRATES_FOLDER.glob("*/Cargo.toml"):
-        crate_folder: Path = cargo_toml.parent
-        session.run("cargo", "publish", "-p", crate_folder.name)
+@nox.session(python=False, name="extract-release-notes", tags=[RELEASE])
+def extract_release_notes(session: Session) -> None:
+    """Extract one exact committed changelog section into a release body."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "extract-notes", *session.posargs, external=True)
+
+
+@nox.session(python=False, name="finalize-release", tags=[RELEASE])
+def finalize_release(session: Session) -> None:
+    """Validate and create an idempotent annotated exact-commit release tag."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "finalize", *session.posargs, external=True)
+
+
+@nox.session(python=False, name="write-artifact-manifest", tags=[RELEASE])
+def write_artifact_manifest(session: Session) -> None:
+    """Create one manifest after CI aggregates all release artifacts."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "manifest", *session.posargs, external=True)
+
+
+@nox.session(python=False, name="verify-release-index", tags=[RELEASE])
+def verify_release_index(session: Session) -> None:
+    """Require an exact artifact-manifest match at TestPyPI or PyPI."""
+    session.run("python", SCRIPTS_FOLDER / "release.py", "verify-index", *session.posargs, external=True)
 
 
 @nox.session(python=False)

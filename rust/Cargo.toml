@@ -1,12 +1,9 @@
-[package]
-name = "robust-maturin-demo"
+[workspace]
+members = ["core", "python"]
+resolver = "2"
+
+[workspace.package]
 version = "0.0.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-name = "robust_maturin_demo"
-crate-type = ["cdylib"]
-
-[dependencies]
-pyo3 = { version = "0.22.0", features = ["extension-module"] }
+license = "MIT"
+repository = "https://github.com/robust-python/robust-maturin-demo"
