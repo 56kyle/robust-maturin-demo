@@ -27,33 +27,33 @@ jobs:
             runner: ubuntu-latest
             python: "3.14"
             artifact-kind: sdist
-            command: uv run --locked nox -s build-release -- --sdist --out-dir dist
+            command: uv run --locked nox -s build-release -- --kind sdist --out-dir dist
 
           - name: Linux x86-64 abi3 wheel
             runner: ubuntu-latest
             python: "3.10"
             artifact-kind: wheel
-            command: uv run --locked nox -s build-release -- --target x86_64-unknown-linux-gnu --interpreter python --out-dir dist
+            command: uv run --locked nox -s build-release -- --kind wheel --target x86_64-unknown-linux-gnu --interpreter python --out-dir dist
           - name: Linux ARM64 abi3 wheel
             runner: ubuntu-24.04-arm
             python: "3.10"
             artifact-kind: wheel
-            command: uv run --locked nox -s build-release -- --target aarch64-unknown-linux-gnu --interpreter python --out-dir dist
+            command: uv run --locked nox -s build-release -- --kind wheel --target aarch64-unknown-linux-gnu --interpreter python --out-dir dist
           - name: macOS x86-64 abi3 wheel
-            runner: macos-13
+            runner: macos-15-intel
             python: "3.10"
             artifact-kind: wheel
-            command: uv run --locked nox -s build-release -- --target x86_64-apple-darwin --interpreter python --out-dir dist
+            command: uv run --locked nox -s build-release -- --kind wheel --target x86_64-apple-darwin --interpreter python --out-dir dist
           - name: macOS ARM64 abi3 wheel
-            runner: macos-14
+            runner: macos-15
             python: "3.10"
             artifact-kind: wheel
-            command: uv run --locked nox -s build-release -- --target aarch64-apple-darwin --interpreter python --out-dir dist
+            command: uv run --locked nox -s build-release -- --kind wheel --target aarch64-apple-darwin --interpreter python --out-dir dist
           - name: Windows x64 abi3 wheel
             runner: windows-latest
             python: "3.10"
             artifact-kind: wheel
-            command: uv run --locked nox -s build-release -- --target x86_64-pc-windows-msvc --interpreter python --out-dir dist
+            command: uv run --locked nox -s build-release -- --kind wheel --target x86_64-pc-windows-msvc --interpreter python --out-dir dist
 
     steps:
       - name: Check out the exact release commit
@@ -72,13 +72,6 @@ jobs:
 
       - name: Build and smoke-test the release artifact
         run: ${{ matrix.command }}
-
-      - name: Keep only the source distribution for the source cell
-        if: matrix.artifact-kind == 'sdist'
-        run: python -c "from pathlib import Path; [path.unlink() for path in Path('dist').glob('*.whl')]"
-
-      - name: Remove the per-cell manifest
-        run: python -c "from pathlib import Path; Path('dist/release-artifacts.json').unlink()"
 
       - name: Upload the checked artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
