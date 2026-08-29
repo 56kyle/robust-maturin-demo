@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - "rust/**/*.rs"
-      - "Cargo.toml"
+      - "rust/**/Cargo.toml"
+      - "rust/Cargo.lock"
       - "noxfile.py"
       - ".github/workflows/lint-rust.yml"
   push:
@@ -13,7 +14,8 @@ on:
       - master
     paths:
       - "rust/**/*.rs"
-      - "Cargo.toml"
+      - "rust/**/Cargo.toml"
+      - "rust/Cargo.lock"
       - "noxfile.py"
       - ".github/workflows/lint-rust.yml"
 
@@ -26,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable

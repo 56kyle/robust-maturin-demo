@@ -1,10 +1,10 @@
-name: Build Rust Crates
+name: Build Rust Core
 
 on:
   pull_request:
     paths:
       - "rust/**/*.rs"
-      - "rust/Cargo.toml"
+      - "rust/**/Cargo.toml"
       - "rust/Cargo.lock"
       - "noxfile.py"
       - ".github/workflows/build-rust.yml"
@@ -14,7 +14,7 @@ on:
       - master
     paths:
       - "rust/**/*.rs"
-      - "rust/Cargo.toml"
+      - "rust/**/Cargo.toml"
       - "rust/Cargo.lock"
       - "noxfile.py"
       - ".github/workflows/build-rust.yml"
@@ -23,7 +23,7 @@ on:
 
 jobs:
   build-rust:
-    name: Build Rust Crates
+    name: Build Rust Core
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -72,18 +72,8 @@ jobs:
             sudo apt-get install -y musl-tools
           fi
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: ".github/workflows/.python-version"
-
-      - name: Build Rust crates for target
-        run: |
-          cd rust
-          cargo build --release --target ${{ matrix.platform.target }}
+      - name: Build Rust Core for target
+        run: cargo build --locked --release --target ${{ matrix.platform.target }} --manifest-path rust/core/Cargo.toml
 
       - name: Upload Rust build artifacts
         uses: actions/upload-artifact@v4

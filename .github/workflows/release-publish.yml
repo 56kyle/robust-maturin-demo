@@ -1,0 +1,125 @@
+name: Publish Release
+
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: publish-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate the annotated release tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+
+      - name: Validate release metadata
+        run: uv run --locked nox -s validate-release
+
+      - name: Fetch main release ancestry
+        run: git fetch origin main:refs/remotes/origin/main --tags
+
+      - name: Validate the annotated tag
+        run: uv run --locked nox -s validate-release-tag -- "${{ github.ref_name }}"
+
+  build:
+    name: Build release artifacts
+    needs: validate
+    uses: ./.github/workflows/release-build.yml
+    with:
+      ref: ${{ github.sha }}
+      artifact-prefix: release
+
+  bundle:
+    name: Assemble the checked artifacts
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download every checked artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Validate distribution metadata
+        run: uvx twine check --strict dist/*.whl dist/*.tar.gz
+
+      - name: Upload the release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+
+  pypi:
+    name: Publish Python distributions
+    needs:
+      - bundle
+
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download the release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist
+
+      - name: Publish to PyPI with trusted publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create the GitHub Release
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Download the published artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: dist
+
+      - name: Render release notes with Commitizen
+        run: uv run --locked nox -s release-notes -- "${{ github.ref_name }}" release-notes.md
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" --verify-tag --title "${{ github.ref_name }}" --notes-file release-notes.md dist/*
