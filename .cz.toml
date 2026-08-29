@@ -1,7 +1,7 @@
 [tool.commitizen]
 tag_format = "v$version"
 version = "0.0.0"
-version_scheme = "semver2"
+version_scheme = "pep440"
 version_provider = "uv"
 version_files = [
     "rust/Cargo.toml:version",
@@ -13,4 +13,3 @@ major_version_zero = true
 commit_msg_file = ".git/COMMIT_EDITMSG"
 retry_after_failure = true
 update_changelog_on_bump = true
-changelog_merge_prerelease = true
